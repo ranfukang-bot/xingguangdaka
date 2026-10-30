@@ -1,0 +1,19 @@
+星光打卡 · 云端版源码
+
+starpunch-sites：云端管理后台、员工打卡页面、考勤和工资计算、数据库接口及测试。
+starpunch-client-sites：Windows 云端版 EXE 客户端、机器码绑定和打包配置。
+
+这是当前在用云端版的源码副本。原开发目录仍保留在：
+C:\Users\Administrator\Documents\ChatGPT\自我
+
+源码不包含 node_modules 依赖、生成的安装包、缓存、本地数据库及登录凭据。
+云端考勤数据仍存放在现有站点，复制源码不会复制云端数据。
+
+开发与打包：
+1. 安装 Node.js，并在对应项目目录安装 package-lock.json 中锁定的依赖。
+2. 后台构建：npm run build。更多信息见 starpunch-sites\README.md。
+3. EXE 打包：在 starpunch-client-sites 中执行 npx electron-builder --win portable。
+4. 云端发布需使用原 Sites 项目的访问权限和部署流程；源码副本本身不包含部署凭据。
+
+复制文件校验记录见：源码文件校验.csv。
+此副本不会自动跟随原开发目录更新。

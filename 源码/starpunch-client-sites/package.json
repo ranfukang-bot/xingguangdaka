@@ -1,0 +1,16 @@
+{
+  "name": "starpunch-cloud-client",
+  "version": "2.0.0",
+  "description": "星光打卡 · 电脑绑定云端版",
+  "author": "StarPunch",
+  "private": true,
+  "main": "main.cjs",
+  "devDependencies": { "electron": "43.2.0", "electron-builder": "26.15.3" },
+  "build": {
+    "appId": "cn.starpunch.cloudclient", "productName": "星光打卡云端版", "asar": true,
+    "files": ["main.cjs", "preload.cjs", "offline.html", "icon.ico"],
+    "directories": {"output": "dist"},
+    "win": {"target": [{"target": "portable", "arch": ["x64"]}], "icon": "icon.ico", "signAndEditExecutable": true},
+    "portable": {"artifactName": "星光打卡云端版.exe", "requestExecutionLevel": "user"}
+  }
+}

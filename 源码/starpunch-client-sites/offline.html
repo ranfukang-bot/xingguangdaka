@@ -1,0 +1,3 @@
+<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><title>星光打卡 · 连接提示</title>
+<style>body{background:#100f22;color:#f6f3ff;font:18px 'Microsoft YaHei',sans-serif;display:grid;place-items:center;height:95vh;margin:0}main{max-width:600px;text-align:center}h1{font-size:32px}p{color:#b9b4cf;line-height:1.8}button{background:#b99cff;border:0;border-radius:14px;padding:16px 34px;font-size:18px;cursor:pointer}</style>
+<main><div style="font-size:56px">✨</div><h1>暂时连接不上打卡服务</h1><p>请检查网络，再点下面的按钮重试。<br>需要连接云端后才能打卡；本次没有提交打卡记录。</p><button onclick="this.textContent='正在连接…';window.starPunchDevice.retry().finally(()=>this.textContent='重新连接')">重新连接</button></main></html>

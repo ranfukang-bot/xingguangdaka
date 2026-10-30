@@ -1,0 +1,75 @@
+给 Claude 的项目交接说明：星光打卡
+
+请先阅读以下背景，再结合源码理解项目。这是已有项目的本地源码副本，不是从零开始的新需求。本次交接依据本地文件整理，未连接生产网站、未核实线上部署版本，也未运行构建或业务测试。
+
+一、这个东西是什么
+“星光打卡”是一个小团队员工考勤、任务完成打卡和工资/提成结算系统。老板管理多个员工；员工在自己绑定的 Windows 电脑上打卡，查看自己的考勤及收入。老板通过网页管理后台查看和修改考勤、录入业绩、管理工资与备份。
+目录同时留有旧单机版和新云端版。此次主要需要理解和继续维护的是新云端版。
+
+二、两个版本不要混淆
+1. 旧单机版：原目录的 index.html、星光打卡.exe。数据留在本机/原浏览器，旧桌面版说明记录的数据目录为 %LOCALAPPDATA%\StarPunch。网页 HTML 可单独用浏览器打开。旧单机 EXE 的桌面打包工程不在现有“源码”目录里，不能声称此交接包可以重新构建旧版 EXE。
+2. 新云端版：源码/starpunch-sites + 源码/starpunch-client-sites，对应“星光打卡云端版.exe”。员工必须联网；后台和业务数据在云端；Windows 客户端主要负责打开员工页面及绑定电脑，不在本机完成整套云端服务。
+3. 旧数据不会因复制源码自动迁移。需要从旧版导出 JSON，再在新后台恢复。源码不等于员工、考勤、工资数据备份。
+
+三、新云端版使用流程
+老板打开 /admin，用部署时设置的 BOOTSTRAP_CODE 完成首次初始化，设置自己的管理员密码；再添加员工、月薪、提成比例及入职日期。
+老板为员工生成一次性电脑绑定码（24 小时有效），员工第一次打开云端 EXE 输入绑定码。
+设计上一名员工绑定一台电脑，一台电脑绑定一名员工；换电脑或重装系统需要老板先解绑再重新绑定。复制 EXE 不会复制本地加密的绑定资格。
+之后员工打开 EXE，上班打卡、完成任务打卡、填写工作内容并查看自己的信息。员工不能使用管理接口。
+
+四、核心业务规则（以云端源码为准）
+默认北京时间 UTC+8；打卡时间取服务端时间。默认上班截止 11:00，任务截止 16:00。代码使用严格“小于”：11:00 整打上班卡已算迟到，16:00 整完成已不算按时。
+准时上班并按时完成：全薪；迟到但按时完成：半薪；迟到且超时：无薪；准时但任务超时：按 undoneRatio，默认半薪；缺勤无薪。
+当前规则引擎明确按每天计算，没有单独的周末/休息日排班规则。不要仅凭旧单机版说明推断云端版支持工作日设置。
+工资按发薪周期计算，不是简单自然月：默认每月 15 日发薪，9 月 15 日至 10 月 14 日属于 10 月 15 日结算的周期，10 月 15 日开始新一期。
+日薪 = 月薪 / 对应工资周期实际天数；整期全勤基础工资等于月薪。提成 = 同周期业绩总额 × 提成比例，员工个人比例优先于全局默认。
+考勤日历按自然月展示，但计薪归属发薪周期。已发放工资金额锁定；修改考勤/业绩后重算未发放结算。旧结算迁移与变更发薪日时保留已发记录，避免重复发放。
+管理员可以人工指定考勤状态、恢复自动判断，也能批量修改多员工/日期范围。批量最多 366 天、1000 条，保留原始打卡时间及审计记录。
+默认时间、月薪、提成和发薪日等可在后台调整；具体以 domain/rules.cjs 和 lib/runtime.js 为准。
+
+五、架构与源码入口
+云端工程：源码/starpunch-sites
+- assets/employee.html：员工页面主体；assets/admin.html：老板后台主体。主要业务界面实际写在这两个 HTML 内，包含页面脚本。不要只看 React UI 模板组件。
+- public/theme.css、public/ui.js：共享样式和界面辅助脚本。
+- app/route.ts：返回员工页面；app/admin/route.ts：返回老板页面。
+- app/api/[...segments]/route.ts：API 路由入口，使用 Cloudflare Workers 环境中的 DB。
+- lib/handler.js：请求适配、D1 读取/提交、revision 乐观并发控制、每日快照、失败回滚。
+- lib/runtime.js：登录、员工管理、设备绑定、打卡、人工考勤、业绩、工资、设置、恢复与审计等主要 API 业务。
+- domain/rules.cjs：共享考勤/工资计算引擎，同时提供给服务端和浏览器；app/rules.js/route.ts 将其输出为浏览器脚本。
+- db/schema.ts、drizzle/0000_even_argent.sql：数据库结构和迁移。业务主状态实际集中在 starpunch_state 的 JSON payload 中，revision 用于并发提交；starpunch_backups 保存每日首份快照，最多最近 90 份。
+- test/integration.test.js：持久化、权限、绑定、并发、工资等集成测试；test/payroll-cycle.test.js：工资周期规则测试。
+- vite.config.ts、build/、scripts/、.openai/hosting.json：Sites / Vite / vinext / Cloudflare 运行和构建适配。
+工程包含 Next 风格 App Router、React/TypeScript 及模板组件，实际构建入口使用 vinext/Vite 和 Cloudflare 插件。不要仅看 package.json 就把它当成普通 Node/Express 或纯静态站点。
+
+Windows 云端客户端：源码/starpunch-client-sites
+- main.cjs：Electron 主进程；打开固定云端站点、读 MachineGuid 后做 SHA256、使用 safeStorage 加密本地设备凭据、处理断网和窗口限制。
+- preload.cjs：通过 contextBridge 暴露 starPunchDevice 设备桥接接口。
+- offline.html：离线提示和重试页面。
+- package.json：Electron / electron-builder、Windows x64 portable 单文件打包配置。
+- icon.ico：客户端图标，完整 ZIP 内保留。
+本地云端客户端数据目录：%LOCALAPPDATA%\StarPunchCloud，绑定凭据文件 device.bin。此目录与旧单机版 StarPunch 分离。
+生产站点地址硬编码在 main.cjs 中： https://starpunch-attendance.ewofts.chatgpt.site
+后台地址为同站点 /admin。这些地址来自本地源码，未在本次交接中核实可用性。若另建站点，需要同步调整客户端地址和部署配置。
+
+六、权限、数据与迁移注意
+管理员密码使用 scrypt；管理会话使用 HttpOnly、SameSite=Strict Cookie，HTTPS 请求下设置 Secure。服务端保存设备令牌哈希；客户端保存 Windows 加密后的令牌，并提交设备标识。
+这是已有的绑定实现，不能据此宣称能抵御一切伪造机器标识或修改客户端的攻击。
+管理员下载备份会去除管理员密钥、设备凭据和员工密码哈希；跨站恢复时可能需要重设员工打卡密码和设备绑定。
+复制源码不包含线上数据库、生产环境变量、部署权限、真实员工记录，也不会自动连接并接管原站点数据。需要生产部署/数据迁移时，要另行安排相应权限和数据导出。
+本地“老板使用说明”里含有初始化码，不在本交接文件中复制。测试文件中的 integration-only 等字符串是测试数据。
+不要仅因源码注释写着“JSON 文件”就改成磁盘数据库；当前持久化由 handler.js 写入 Cloudflare D1。
+
+七、运行信息（来自源码，尚未在本次交接执行）
+云端 package.json 声明 Node.js >=22.13.0。安装依赖使用 npm ci；构建 npm run build。项目运行与本地 D1 迁移的详细命令见 starpunch-sites/README.md；需要执行迁移并给本地环境配置测试初始化码。不要把生产初始化码写进源码。
+业务测试：在 starpunch-sites 目录执行 node --test test/integration.test.js test/payroll-cycle.test.js。测试使用 node:sqlite，实际 Node 版本需要支持它。
+客户端：在 starpunch-client-sites 执行 npm ci，再执行 npx electron-builder --win portable。目标是 Windows x64 便携版；重建需要相应依赖与构建环境。
+现有生产托管使用 Sites，源码副本本身不提供生产发布权限。运行本地副本和更新现有生产站点是两个操作。
+
+八、请 Claude 怎样接手
+请先解释你的理解：项目用途、老板与员工的使用流程、云端/客户端分工、考勤与工资规则、数据存放位置。结合文件路径说明，不要凭空补齐未提供的功能。
+先阅读两个页面、rules.cjs、runtime.js、handler.js、Electron main/preload，再按需要阅读构建和测试。保留已有工资周期、已发金额锁定、权限隔离、设备绑定及备份兼容行为。
+这次先理解现有项目，等我提出具体修改要求后再改。若发现问题，请指出对应文件与证据，并区分“已确认的问题”和“需要运行验证的推测”。
+
+九、附件区别
+“星光打卡_给Claude_说明与核心源码.txt”：一个可直接上传的阅读文件，本说明之后按原相对路径拼接核心源码；未包含依赖锁文件、图标、模板组件及完整构建辅助文件，不能把它直接当作单文件程序运行。
+“星光打卡_源码交接.zip”：现有云端源码目录完整保留（含锁文件、隐藏配置、图标、构建辅助文件），另附旧单机 index.html 与原 README 作为历史参考，以及本说明。不包含两个 EXE 和含初始化码的老板操作说明。若接手修改/构建，优先使用 ZIP 解压后的工程。
